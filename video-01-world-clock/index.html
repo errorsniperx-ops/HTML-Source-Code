@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D World Clock 9:16</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+        }
+
+        /* 9:16 Mobile Screen Container */
+        .screen-container {
+            width: 90vh; 
+            max-width: 450px;
+            aspect-ratio: 9 / 16;
+            position: relative;
+            background: radial-gradient(circle at center, #0a1f2b 0%, #000000 90%);
+            border: 1px solid #333;
+            box-shadow: 0 0 50px rgba(0, 255, 204, 0.2);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        /* Scanline Effect */
+        .screen-container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Glowing Channel Name */
+        .channel-header {
+            position: absolute;
+            top: 8%; /* Positioned near top */
+            width: 100%;
+            text-align: center;
+            z-index: 20;
+        }
+
+        .channel-text {
+            color: #ffffff;
+            font-size: 1.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            /* The Glowing Effect */
+            text-shadow: 
+                0 0 10px #00ffcc,
+                0 0 20px #00ffcc,
+                0 0 40px #00ffcc;
+            animation: pulse 2s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.8; text-shadow: 0 0 10px #00ffcc; }
+            to { opacity: 1; text-shadow: 0 0 25px #00ffcc, 0 0 50px #00ffcc; }
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Small data footer */
+        .footer-data {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: #00ffcc;
+            font-size: 0.7rem;
+            opacity: 0.6;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="screen-container">
+        <div class="channel-header">
+            <div class="channel-text">CYBER TECH</div>
+        </div>
+
+        <canvas id="globeCanvas"></canvas>
+        
+        <div class="footer-data">
+            SYS.TRACKING // INDIA_PAK_ZONE
+        </div>
+    </div>
+
+    <script>
+        const container = document.querySelector('.screen-container');
+        const canvas = document.getElementById('globeCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        // Adjusted radius for mobile screen width
+        const GLOBE_RADIUS = 160; 
+        let rotationAngle = 4.0; // Start rotation focusing near Asia
+        const PERSPECTIVE = 800;
+
+        // --- ADDED INDIA & PAKISTAN HERE ---
+        const cities = [
+            { name: "NEW DELHI", lat: 28.61, lon: 77.20, tz: "Asia/Kolkata" },
+            { name: "KARACHI", lat: 24.86, lon: 67.00, tz: "Asia/Karachi" },
+            { name: "DUBAI", lat: 25.20, lon: 55.27, tz: "Asia/Dubai" },
+            { name: "LONDON", lat: 51.50, lon: -0.12, tz: "Europe/London" },
+            { name: "TOKYO", lat: 35.67, lon: 139.65, tz: "Asia/Tokyo" },
+            { name: "NEW YORK", lat: 40.71, lon: -74.00, tz: "America/New_York" }
+        ];
+
+        function resize() {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        // Resize observer to handle container size changes
+        new ResizeObserver(resize).observe(container);
+        resize();
+
+        // 3D Math Helper
+        function getSpherePos(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            return { x, y, z };
+        }
+
+        function project3D(x, y, z) {
+            const angle = rotationAngle;
+            // Rotate Y
+            const rx = x * Math.cos(angle) - z * Math.sin(angle);
+            const rz = z * Math.cos(angle) + x * Math.sin(angle);
+            
+            // Perspective
+            const scale = PERSPECTIVE / (PERSPECTIVE + rz);
+            const x2d = rx * scale + width / 2;
+            const y2d = y * scale + height / 2; // Offset to lower middle
+            
+            return { x: x2d, y: y2d, z: rz, scale: scale };
+        }
+
+        function getTimeString(timezone) {
+            try {
+                return new Date().toLocaleTimeString('en-US', { 
+                    timeZone: timezone, 
+                    hour12: true, // AM/PM format
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            } catch (e) { return "ERROR"; }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, width, height);
+            
+            // Slow Rotation
+            rotationAngle -= 0.003; 
+
+            ctx.lineWidth = 1;
+
+            // Draw Wireframe (Globe)
+            // Longitude
+            ctx.strokeStyle = 'rgba(0, 255, 204, 0.08)';
+            for (let i = 0; i < 360; i += 20) {
+                ctx.beginPath();
+                for (let lat = -90; lat <= 90; lat += 5) {
+                    const pos = getSpherePos(lat, i, GLOBE_RADIUS);
+                    const proj = project3D(pos.x, pos.y, pos.z);
+                    if (lat === -90) ctx.moveTo(proj.x, proj.y);
+                    else ctx.lineTo(proj.x, proj.y);
+                }
+                ctx.stroke();
+            }
+            // Latitude
+            for (let lat = -80; lat <= 80; lat += 20) {
+                ctx.beginPath();
+                for (let lon = 0; lon <= 360; lon += 5) {
+                    const pos = getSpherePos(lat, lon, GLOBE_RADIUS);
+                    const proj = project3D(pos.x, pos.y, pos.z);
+                    if (lon === 0) ctx.moveTo(proj.x, proj.y);
+                    else ctx.lineTo(proj.x, proj.y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw Cities
+            cities.forEach(city => {
+                const pos = getSpherePos(city.lat, city.lon, GLOBE_RADIUS);
+                const proj = project3D(pos.x, pos.y, pos.z);
+
+                // Only draw if on front side
+                if (proj.z > 20) return; 
+
+                // Dynamic Alpha based on depth
+                const alpha = Math.max(0.1, (1 - (proj.z + 200) / 500)); 
+
+                // Dot
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, 3 * proj.scale, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 50, 50, ${alpha})`; // Red dot for visibility
+                ctx.fill();
+
+                // Stalk
+                const stalkH = 40 * proj.scale;
+                ctx.beginPath();
+                ctx.moveTo(proj.x, proj.y);
+                ctx.lineTo(proj.x, proj.y - stalkH);
+                ctx.strokeStyle = `rgba(0, 255, 204, ${alpha * 0.6})`;
+                ctx.stroke();
+
+                // Text Settings
+                ctx.textAlign = "center";
+                
+                // City Name
+                ctx.font = `${10 * proj.scale}px 'Courier New'`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fillText(city.name, proj.x, proj.y - stalkH - (14 * proj.scale));
+
+                // Time
+                ctx.font = `bold ${12 * proj.scale}px 'Courier New'`;
+                ctx.fillStyle = `rgba(0, 255, 204, ${alpha})`;
+                ctx.shadowColor = "#00ffcc";
+                ctx.shadowBlur = 10 * alpha;
+                const timeStr = getTimeString(city.tz);
+                ctx.fillText(timeStr, proj.x, proj.y - stalkH);
+                ctx.shadowBlur = 0;
+            });
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
