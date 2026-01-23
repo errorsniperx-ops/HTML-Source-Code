@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Warp Galaxy 9:16</title>
+
+<style>
+    /* 1. Body ko Center aur Black rakho */
+    body {
+        margin: 0;
+        padding: 0;
+        background-color: #000000;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+    }
+
+    /* 2. The 9:16 Screen Container */
+    #screen-container {
+        position: relative;
+        width: 100vh;       /* Height ke hisab se width adjust hogi */
+        max-width: 55vh;    /* 9:16 ratio maintain karne ke liye math */
+        aspect-ratio: 9 / 16;
+        background: #000000;
+        box-shadow: 0 0 50px rgba(0, 255, 255, 0.2); /* Outer Glow */
+        overflow: hidden;   /* Star bahar na jaye */
+        border-radius: 12px;
+    }
+
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        mix-blend-mode: screen; 
+    }
+
+    /* Cinematic Vignette Overlay inside the screen */
+    .vignette {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: radial-gradient(circle, transparent 45%, black 100%);
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    /* Username Styling - Inside the container */
+    #tag {
+        position: absolute;
+        top: 8%;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        width: 100%;
+        font-size: 1.8rem; /* Mobile size ke liye adjust kiya */
+        font-weight: bold;
+        color: #ffffff;
+        z-index: 10;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        
+        /* Neon Glow Animation */
+        text-shadow: 
+            0 0 10px #00ffff,
+            0 0 20px #00ffff,
+            0 0 40px #0000ff;
+        animation: pulse 2s infinite alternate;
+    }
+
+    @keyframes pulse {
+        0% { opacity: 0.8; text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff; }
+        100% { opacity: 1; text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff, 0 0 80px #0000ff; }
+    }
+</style>
+</head>
+
+<body>
+
+    <div id="screen-container">
+        <div id="tag">@ErrorSniperCodes</div>
+        <div class="vignette"></div>
+        <canvas id="canvas"></canvas>
+    </div>
+
+<script>
+const container = document.getElementById("screen-container");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let width, height, cx, cy;
+
+// Resize logic specifically for the Container
+function resize() {
+    width = container.clientWidth;
+    height = container.clientHeight;
+    
+    // Set internal resolution matches display size
+    canvas.width = width;
+    canvas.height = height;
+    
+    cx = width / 2;
+    cy = height / 2;
+}
+// Monitor container resize
+new ResizeObserver(resize).observe(container);
+resize();
+
+// --- CONFIGURATION ---
+const STAR_COUNT = 800; 
+const SPEED_BASE = 12;   
+let rotationSpeed = 0.003; 
+
+// Cyberpunk / Space Colors
+const colors = [
+    "#ffffff", // White
+    "#00ffff", // Cyan
+    "#ff00ff", // Magenta
+    "#bd00ff", // Purple
+    "#0066ff"  // Deep Blue
+];
+
+class Star {
+    constructor() {
+        this.reset(true);
+    }
+
+    reset(initial = false) {
+        // Spread logic for 9:16 vertical screen
+        this.x = (Math.random() - 0.5) * width * 6; // Wider spread needed for vertical rotation
+        this.y = (Math.random() - 0.5) * height * 6;
+        
+        this.z = initial ? Math.random() * 2000 : 2000;
+        
+        // Size logic
+        this.baseSize = Math.random() * 2.5 + 0.5; 
+        
+        this.color = colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    update() {
+        this.z -= SPEED_BASE;
+        if (this.z < 1) {
+            this.reset();
+        }
+    }
+
+    draw() {
+        const focalLength = 400; // Increased slightly for vertical depth
+        
+        const scale = focalLength / this.z;
+        const x2d = cx + this.x * scale;
+        const y2d = cy + this.y * scale;
+
+        const size = this.baseSize * scale;
+
+        // Optimization: Don't draw if way off screen
+        if (x2d < -50 || x2d > width + 50 || y2d < -50 || y2d > height + 50) return;
+
+        ctx.beginPath();
+        ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
+        
+        // Glow Effect
+        ctx.shadowBlur = size * 5; 
+        ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        
+        // Fade out when too close (prevents screen flash)
+        if (scale > 3) ctx.globalAlpha = 1 - (scale - 3) * 0.2;
+        if (ctx.globalAlpha < 0) ctx.globalAlpha = 0;
+
+        ctx.fill();
+        
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+    }
+}
+
+const stars = [];
+for (let i = 0; i < STAR_COUNT; i++) {
+    stars.push(new Star());
+}
+
+let angle = 0;
+
+function animate() {
+    // Trail Effect
+    ctx.fillStyle = "rgba(0, 0, 0, 0.25)"; 
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
+    // Rotate from center
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+    ctx.translate(-cx, -cy);
+    angle += rotationSpeed;
+
+    for (const star of stars) {
+        star.update();
+        star.draw();
+    }
+
+    ctx.restore();
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+</script>
+
+</body>
+</html>
