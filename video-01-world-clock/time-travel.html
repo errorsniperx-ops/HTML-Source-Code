@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Travels: Black Hole Edition</title>
+    <style>
+        /* --- CORE STYLES --- */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #00eaff;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 0;
+        }
+
+        /* --- THE SCI-FI UI PANEL --- */
+        #ui-panel {
+            position: relative;
+            z-index: 10;
+            width: 400px;
+            padding: 40px;
+            text-align: center;
+            
+            /* Glassmorphism & Glow Effect */
+            background: rgba(0, 10, 20, 0.6);
+            border: 2px solid rgba(0, 234, 255, 0.5);
+            box-shadow: 0 0 30px rgba(0, 234, 255, 0.2), inset 0 0 20px rgba(0, 234, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            
+            transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            color: #fff;
+            text-shadow: 0 0 15px #00eaff;
+        }
+
+        .sub-text {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.7);
+            letter-spacing: 2px;
+            margin-bottom: 40px;
+            display: block;
+        }
+
+        /* --- CONTROLS --- */
+        .input-group {
+            position: relative;
+            margin-bottom: 30px;
+        }
+        
+        label {
+            display: block;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            margin-bottom: 10px;
+            color: #00eaff;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            background: rgba(0,0,0,0.5);
+            border: 2px solid rgba(0, 234, 255, 0.5);
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            font-size: 2.5rem;
+            text-align: center;
+            outline: none;
+            box-sizing: border-box;
+            transition: 0.3s;
+            text-shadow: 0 0 10px rgba(0, 234, 255, 0.5);
+        }
+        input:focus {
+            border-color: #00eaff;
+            box-shadow: 0 0 20px rgba(0, 234, 255, 0.4);
+        }
+
+        .btn-engage {
+            width: 100%;
+            padding: 20px;
+            /* Orange/Gold Gradient for contrast */
+            background: linear-gradient(180deg, #ff9d00, #cc7000);
+            border: none;
+            color: #000;
+            font-weight: 900;
+            font-size: 1.5rem;
+            letter-spacing: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 30px rgba(255, 157, 0, 0.3);
+            transition: 0.3s;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+        }
+        .btn-engage:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 50px rgba(255, 157, 0, 0.6);
+            color: #fff;
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 1px;
+        }
+
+        /* --- TRAVEL HUD --- */
+        #travel-hud {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            z-index: 5;
+            pointer-events: none;
+        }
+        .big-year {
+            font-size: 12vw;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 50px currentColor;
+            line-height: 1;
+        }
+        .hud-label {
+            font-size: 1.5rem;
+            background: rgba(0,0,0,0.7);
+            border: 2px solid currentColor;
+            padding: 10px 30px;
+            color: #fff;
+            display: inline-block;
+            letter-spacing: 5px;
+            margin-bottom: 20px;
+        }
+
+        /* Helper to hide UI during warp */
+        .ui-hidden {
+            opacity: 0;
+            transform: scale(1.2);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h1>TIME TRAVELS</h1>
+        <span class="sub-text">TIME LOCKED</span>
+
+        <div class="input-group">
+            <label>ENTER DESTINATION YEAR</label>
+            <input type="number" id="yearInput" placeholder="YYYY" value="2050">
+        </div>
+
+        <button class="btn-engage" onclick="initiateWarp()">ENGAGE</button>
+        
+        <div class="footer">POWERED BY @ErrorSniperCodes</div>
+    </div>
+
+    <div id="travel-hud" style="color: #00eaff">
+        <div class="hud-label">WARP INITIATED</div>
+        <div class="big-year" id="liveCounter">2026</div>
+    </div>
+
+    <canvas id="spaceCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('spaceCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiPanel = document.getElementById('ui-panel');
+        const travelHud = document.getElementById('travel-hud');
+        const liveCounter = document.getElementById('liveCounter');
+
+        let width, height, cx, cy;
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            cx = width / 2;
+            cy = height / 2;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- BLACK HOLE CONFIG ---
+        const PARTICLE_COUNT = 1500;
+        let particles = [];
+        let state = 'IDLE'; // IDLE, WARP, ARRIVED
+        let currentYear = 2026;
+        let displayYear = 2026;
+        let targetYear = 2026;
+        
+        // Animation variables
+        let globalSpeed = 1;
+        let rotationSpeed = 0.001;
+        let holeColor = { r:0, g:234, b:255 }; // Default Cyan
+
+        class Particle {
+            constructor() { this.reset(true); }
+            reset(initial) {
+                // Start particles far out
+                this.angle = Math.random() * Math.PI * 2;
+                this.radius = Math.random() * width + width/4; 
+                this.z = initial ? Math.random() * 2000 : 2000;
+                this.size = Math.random() * 2 + 0.5;
+                this.speedMod = Math.random() * 0.5 + 0.5;
+            }
+            update() {
+                let speed = (state === 'IDLE' ? 2 : 15) * globalSpeed * this.speedMod;
+                
+                // Move closer to center (Z-depth)
+                this.z -= speed;
+                
+                // Spiral motion (rotate around center)
+                this.angle += rotationSpeed * (2000 / this.z); // Faster rotation near center
+
+                // Shrink radius as it gets closer to simulate falling in
+                this.radius -= speed * 0.5;
+
+                if (this.z <= 10 || this.radius <= 10) this.reset();
+            }
+            draw() {
+                let scale = 500 / (500 + this.z);
+                let x2d = cx + Math.cos(this.angle) * this.radius * scale;
+                let y2d = cy + Math.sin(this.angle) * this.radius * scale;
+
+                if (x2d < 0 || x2d > width || y2d < 0 || y2d > height) return;
+
+                let size = this.size * scale;
+                // Fade out particles that are too close or too far
+                let alpha = Math.min(1, (this.z / 500)) * Math.min(1, (this.radius / 100));
+
+                ctx.fillStyle = `rgba(${holeColor.r}, ${holeColor.g}, ${holeColor.b}, ${alpha})`;
+                
+                // Draw with trail effect in WARP mode
+                if(state === 'WARP') {
+                    let prevScale = 500 / (500 + (this.z + 50 * globalSpeed));
+                    let prevX = cx + Math.cos(this.angle - 0.05) * (this.radius + 25 * globalSpeed) * prevScale;
+                    let prevY = cy + Math.sin(this.angle - 0.05) * (this.radius + 25 * globalSpeed) * prevScale;
+                    
+                    ctx.strokeStyle = `rgba(${holeColor.r}, ${holeColor.g}, ${holeColor.b}, ${alpha * 0.5})`;
+                    ctx.lineWidth = size;
+                    ctx.beginPath();
+                    ctx.moveTo(x2d, y2d);
+                    ctx.lineTo(prevX, prevY);
+                    ctx.stroke();
+                }
+
+                // Draw particle head
+                ctx.beginPath();
+                ctx.arc(x2d, y2d, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        for(let i=0; i<PARTICLE_COUNT; i++) particles.push(new Particle());
+
+        // --- LOGIC ---
+        function initiateWarp() {
+            let input = document.getElementById('yearInput').value;
+            if (!input) { alert("ENTER COORDINATES"); return; }
+            targetYear = parseInt(input);
+
+            if (targetYear === currentYear) { alert("ALREADY AT DESTINATION"); return; }
+
+            // Determine Color based on direction
+            if (targetYear < currentYear) {
+                // PAST: Orange/Red
+                holeColor = { r:255, g:100, b:0 };
+                travelHud.style.color = "rgb(255, 100, 0)";
+                travelHud.querySelector('.hud-label').innerText = "REWINDING TIME";
+            } else {
+                // FUTURE: Cyan/Blue
+                holeColor = { r:0, g:234, b:255 };
+                travelHud.style.color = "rgb(0, 234, 255)";
+                travelHud.querySelector('.hud-label').innerText = "ACCELERATING TIME";
+            }
+
+            // Hide UI
+            uiPanel.classList.add('ui-hidden');
+            
+            // Start Warp Animation
+            setTimeout(() => {
+                state = 'WARP';
+                globalSpeed = 5; // Speed up black hole
+                rotationSpeed = 0.005; // Spin faster
+                
+                displayYear = currentYear;
+                liveCounter.innerText = displayYear;
+                travelHud.style.display = 'block';
+                
+                startYearCounter();
+            }, 500);
+        }
+
+        function startYearCounter() {
+            let interval = setInterval(() => {
+                if (state !== 'WARP') { clearInterval(interval); return; }
+
+                let diff = Math.abs(targetYear - displayYear);
+                let step = 1;
+                if (diff > 50) step = 5;
+                if (diff > 200) step = 10;
+                if (diff > 1000) step = 25;
+
+                if (displayYear > targetYear) {
+                    displayYear -= step;
+                    if (displayYear < targetYear) displayYear = targetYear;
+                } else {
+                    displayYear += step;
+                    if (displayYear > targetYear) displayYear = targetYear;
+                }
+                liveCounter.innerText = displayYear;
+
+                if (displayYear === targetYear) arriveAtDestination();
+            }, 40);
+        }
+
+        function arriveAtDestination() {
+            state = 'ARRIVED';
+            travelHud.querySelector('.hud-label').innerText = "WELCOME TO A NEW WORLD";
+            
+            // Change to white/bright flash on arrival
+            holeColor = { r:255, g:255, b:255 };
+            travelHud.style.color = "#fff";
+
+            // Slow down
+            let slowDown = setInterval(() => {
+                if(globalSpeed > 1) {
+                    globalSpeed -= 0.1;
+                    rotationSpeed -= 0.0001;
+                } else {
+                    clearInterval(slowDown);
+                    state = 'IDLE';
+                    globalSpeed = 1;
+                    rotationSpeed = 0.001;
+                    
+                    // Reset UI
+                    setTimeout(() => {
+                         uiPanel.classList.remove('ui-hidden');
+                         travelHud.style.display = 'none';
+                         currentYear = targetYear;
+                         uiPanel.querySelector('.sub-text').innerText = `EVENT HORIZON STABLE | CURRENT YEAR: ${currentYear}`;
+                         // Reset color back to default cyan for idle
+                         holeColor = { r:0, g:234, b:255 };
+                    }, 2000);
+                }
+            }, 50);
+        }
+
+        function animate() {
+            // Semi-transparent black for trail effect
+            ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+            ctx.fillRect(0, 0, width, height);
+            // Draw Black Hole Center Glow
+            let centerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, width/4);
+            centerGlow.addColorStop(0, `rgba(${holeColor.r}, ${holeColor.g}, ${holeColor.b}, 0.2)`);
+            centerGlow.addColorStop(1, "rgba(0,0,0,0)");
+            ctx.fillStyle = centerGlow;
+            ctx.fillRect(0,0,width,height);
+            particles.sort((a, b) => b.z - a.z);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</body>
+</html>
