@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Rotate 3D Cube with Active Glow</title>
+    <style>
+        /* --- 1. Reset & Setup --- */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        /* --- 2. The 4:5 Container --- */
+        .screen-container {
+            aspect-ratio: 4 / 5;  /* CHANGED FROM 9/16 TO 4/5 */
+            height: 90vh; 
+            max-width: 90vw;
+            background: #000;
+            border: 2px solid #333;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            perspective: 1000px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- 3. Background Canvas (Waves) --- */
+        #waveCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0.8; 
+        }
+
+        /* --- 4. Brand & UI Text --- */
+        .brand-text {
+            position: absolute;
+            top: 35px; 
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 1.4rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            z-index: 20; 
+            white-space: nowrap;
+            text-shadow: 0 0 5px #0ff, 0 0 15px #0ff, 0 0 30px #0ff;
+            animation: pulseGlow 2s infinite alternate ease-in-out;
+            pointer-events: none;
+        }
+
+        @keyframes pulseGlow {
+            from { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff; opacity: 0.9;}
+            to   { text-shadow: 0 0 10px #0ff, 0 0 25px #0ff, 0 0 40px #0ff; opacity: 1;}
+        }
+
+        .ui-text {
+            position: absolute;
+            top: 75px; 
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        /* --- 5. The 3D Object (Cube) --- */
+        .cube {
+            width: 150px;
+            height: 150px;
+            position: relative;
+            transform-style: preserve-3d;
+            margin-top: 20px;
+            z-index: 10; 
+            will-change: transform;
+        }
+
+        .face {
+            position: absolute;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.7); 
+            border: 2px solid #0ff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2) inset, 0 0 5px #0ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: #0ff;
+            font-size: 2.5rem;
+            backface-visibility: visible;
+            user-select: none;
+            /* Smooth transition for the glow effect */
+            transition: text-shadow 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* --- NEW: The "Active" Glow Class --- */
+        .face.active-face {
+            /* The "halka sa glow" on the number */
+            text-shadow: 0 0 15px #0ff, 0 0 30px #0ff;
+            /* Optional: make the border slightly brighter too */
+            border-color: #fff;
+            z-index: 2; /* Ensure it sits slightly above others if overlapping */
+        }
+
+        .front  { transform: translateZ(75px); }
+        .back   { transform: rotateY(180deg) translateZ(75px); }
+        .right  { transform: rotateY(90deg) translateZ(75px); }
+        .left   { transform: rotateY(-90deg) translateZ(75px); }
+        .top    { transform: rotateX(90deg) translateZ(75px); }
+        .bottom { transform: rotateX(-90deg) translateZ(75px); }
+
+    </style>
+</head>
+<body>
+
+    <div class="screen-container" id="scene">
+        <canvas id="waveCanvas"></canvas>
+        <div class="brand-text">@ErrorSniperCodes</div>
+        <div class="ui-text">THE CODE BREATHES</div>
+        <div class="cube" id="cube">
+            <div class="face front">1</div>
+            <div class="face back">2</div>
+            <div class="face right">3</div>
+            <div class="face left">4</div>
+            <div class="face top">5</div>
+            <div class="face bottom">6</div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. CUBE LOGIC (AUTO ROTATE + DRAG + GLOW)
+        // ==========================================
+        const scene = document.getElementById('scene');
+        const cube = document.getElementById('cube');
+        
+        // State variables
+        let isDragging = false;
+        let startX, startY;
+        let currentX = -30;
+        let currentY = -45;
+        let autoSpeedY = 0.6;
+        let autoSpeedX = 0.3;
+            function toRad(deg) { return deg * Math.PI / 180; }
+            const faceData = [
+            { el: document.querySelector('.face.front'), point: [0, 0, 75] },
+            { el: document.querySelector('.face.back'), point: [0, 0, -75] },
+            { el: document.querySelector('.face.right'), point: [75, 0, 0] },
+            { el: document.querySelector('.face.left'), point: [-75, 0, 0] },
+            { el: document.querySelector('.face.top'), point: [0, 75, 0] },
+            { el: document.querySelector('.face.bottom'), point: [0, -75, 0] },
+        ];
+            function getRotatedZ(x, y, z, rotateXDeg, rotateYDeg) {
+            let radX = toRad(rotateXDeg);
+            let cosX = Math.cos(radX);
+            let sinX = Math.sin(radX);
+            let z1 = y * sinX + z * cosX;
+            let radY = toRad(rotateYDeg);
+            let sinY = Math.sin(radY);
+            let z2 = -x * sinY + z1 * Math.cos(radY);
+            return z2;
+        }
+        function updateHighlights() {
+            let maxZ = -Infinity;
+            let frontFaceEl = null;
+            faceData.forEach(face => {
+            face.el.classList.remove('active-face');
+            const currentZ = getRotatedZ(face.point[0], face.point[1], face.point[2], currentX, currentY);
+            if (currentZ > maxZ) {
+                    maxZ = currentZ;
+                    frontFaceEl = face.el;
+                }
+            });
+            if (frontFaceEl) {
+                frontFaceEl.classList.add('active-face');
+            }
+        }
+
+        // --- The Animation Loop ---
+        function animateCube() {
+            if (!isDragging) {
+                currentY += autoSpeedY;
+                currentX += autoSpeedX;
+                cube.style.transform = `rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+            }
+            
+            // NEW: Update highlight every frame
+            updateHighlights();
+            
+            requestAnimationFrame(animateCube);
+        }
+        
+        // Start the loop
+        animateCube();
+
+        // --- Interaction Handlers ---
+        const handleStart = (x, y) => {
+            isDragging = true;
+            startX = x;
+            startY = y;
+            cube.style.cursor = 'grabbing';
+        };
+
+        const handleEnd = () => {
+            isDragging = false;
+            cube.style.cursor = 'default';
+        };
+
+        const handleMove = (x, y) => {
+            if (!isDragging) return;
+            
+            const deltaX = x - startX;
+            const deltaY = y - startY;
+            
+            currentY += deltaX * 0.5;
+            currentX -= deltaY * 0.5;
+            
+            cube.style.transform = `rotateX(${currentX}deg) rotateY(${currentY}deg)`;
+            
+            startX = x;
+            startY = y;
+            
+            // NEW: Update highlight while dragging for responsiveness
+            updateHighlights();
+        };
+
+        // Mouse Events
+        scene.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+        
+        // Touch Events
+        scene.addEventListener('touchstart', (e) => handleStart(e.touches[0].clientX, e.touches[0].clientY));
+        scene.addEventListener('touchend', handleEnd);
+        scene.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            handleMove(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+
+        // ==========================================
+        // 2. BACKGROUND WAVES (Canvas) - UNCHANGED
+        // ==========================================
+        const canvas = document.getElementById('waveCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = scene.clientWidth;
+            canvas.height = scene.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        let time = 0;
+        const rows = 35; 
+        const cols = 20; 
+        const separation = 35; 
+
+        function drawWave() {
+            ctx.fillStyle = '#000'; 
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2; 
+            const fov = 350; 
+
+            time += 0.04; 
+
+            for (let x = 0; x < cols; x++) {
+                for (let z = 0; z < rows; z++) {
+                    const px = (x - cols / 2) * separation;
+                    const pz = (z - rows / 2) * separation; 
+
+                    const distance = Math.sqrt(px*px + pz*pz);
+                    const waveHeight = Math.sin(distance * 0.04 - time) * 40 + Math.sin(px * 0.1 + time) * 10;
+
+                    const cameraZ = pz + 600; 
+                    
+                    if (cameraZ > 0) {
+                        const scale = fov / cameraZ;
+                        const screenX = cx + px * scale;
+                        
+                        const alpha = (cameraZ - 200) / 1000;
+                        const size = 2.5 * scale;
+                        const opacity = 1 - Math.min(alpha, 1);
+
+                        // Cyan Floor
+                        const screenY_floor = cy + (waveHeight + 150) * scale;
+                        ctx.beginPath();
+                        ctx.fillStyle = `rgba(0, 255, 255, ${opacity})`; 
+                        ctx.arc(screenX, screenY_floor, size, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        // Magenta Ceiling
+                        const screenY_ceil = cy + (-waveHeight - 150) * scale;
+                        ctx.beginPath();
+                        ctx.fillStyle = `rgba(255, 0, 255, ${opacity})`; 
+                        ctx.arc(screenX, screenY_ceil, size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+            requestAnimationFrame(drawWave);
+        }
+        drawWave();
+    </script>
+</body>
+</html>
