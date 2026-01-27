@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Error Sniper - Danger Mode (9:16)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000000; /* Letterbox black bars */
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* --- 9:16 CONTAINER --- */
+        #game-viewport {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            /* Force 9:16 Aspect Ratio */
+            aspect-ratio: 9 / 16;
+            /* Ensure it fits within the screen without overflowing */
+            max-width: 56.25vh; /* 100vh * (9/16) */
+            max-height: 100vh;
+            background: #000;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.1);
+        }
+
+        /* Adjust canvas to fill the viewport wrapper */
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+        }
+
+        .vignette {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: radial-gradient(circle, transparent 30%, #000000 130%);
+            z-index: 2;
+        }
+
+        /* --- GLITCH TEXT (MOVED TO TOP) --- */
+        #brand-wrapper {
+            position: absolute;
+            top: 12%; /* Moved to TOP, slightly down */
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            text-align: center;
+            width: 100%;
+        }
+
+        .glitch-text {
+            position: relative;
+            display: inline-block;
+            font-size: 1.4rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.5); 
+            animation: fadeIn 2s ease-out forwards;
+            opacity: 0;
+        }
+
+        .glitch-text::before, .glitch-text::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%; opacity: 0.8;
+        }
+        .glitch-text::before {
+            color: #ff0000; 
+            z-index: -1;
+            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+            animation: glitch-anim-1 2.5s infinite linear alternate-reverse;
+        }
+        .glitch-text::after {
+            color: #550000; 
+            z-index: -2;
+            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+            animation: glitch-anim-2 3s infinite linear alternate-reverse;
+        }
+
+        @keyframes fadeIn {
+            0% { opacity: 0; letter-spacing: 1em; }
+            100% { opacity: 1; letter-spacing: 0.3em; }
+        }
+        @keyframes glitch-anim-1 {
+            0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 1px); }
+            5% { clip-path: inset(10% 0 60% 0); transform: translate(2px, -1px); }
+            100% { clip-path: inset(30% 0 50% 0); transform: translate(1px, 1px); }
+        }
+        @keyframes glitch-anim-2 {
+            0% { clip-path: inset(60% 0 10% 0); transform: translate(2px, -1px); }
+            5% { clip-path: inset(30% 0 50% 0); transform: translate(-2px, 1px); }
+            100% { clip-path: inset(20% 0 60% 0); transform: translate(-1px, 1px); }
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="game-viewport">
+        <div id="canvas-container"></div>
+        <div class="vignette"></div>
+        <div id="brand-wrapper">
+            <div class="glitch-text" data-text="Error Sniper">Error Sniper</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // ==========================================
+        // ⚙️ CONFIGURATION
+        // ==========================================
+        const CONFIG = {
+            colorCore: 0xaaddff,  // White-Blue Core
+            colorSnake: 0x111111, // Dark Metallic Black
+            colorEyes: 0xff0000,  // DANGER RED
+            speedMultiplier: 1.0, 
+        };
+
+        const viewport = document.getElementById('game-viewport');
+        const container = document.getElementById('canvas-container');
+        
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.03); 
+
+        // Initial aspect ratio calculation based on the wrapper, not window
+        const camera = new THREE.PerspectiveCamera(60, viewport.clientWidth / viewport.clientHeight, 0.1, 100);
+        camera.position.set(0, 0, 9); 
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(viewport.clientWidth, viewport.clientHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        container.appendChild(renderer.domElement);
+
+        // --- LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0x404040, 2); 
+        scene.add(ambientLight);
+        
+        const dangerLight = new THREE.DirectionalLight(0xff0000, 3);
+        dangerLight.position.set(5, 5, 5);
+        scene.add(dangerLight);
+        
+        const blueLight = new THREE.PointLight(0x00aaff, 5, 10);
+        blueLight.position.set(0, 0, 0); 
+        scene.add(blueLight);
+
+        // --- 1. THE CORE ---
+        const coreGeo = new THREE.SphereGeometry(1.2, 64, 64);
+        const glowMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                viewVector: { value: camera.position },
+                glowColor: { value: new THREE.Color(CONFIG.colorCore) },
+                time: { value: 0 }
+            },
+            vertexShader: `
+                uniform vec3 viewVector;
+                varying float intensity;
+                void main() {
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    vec3 actual_normal = normalize(normalMatrix * normal);
+                    vec3 view_dir = normalize(normalMatrix * viewVector);
+                    intensity = pow(0.6 - dot(actual_normal, view_dir), 4.0); 
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 glowColor;
+                uniform float time;
+                varying float intensity;
+                void main() {
+                    float pulse = 0.9 + 0.1 * sin(time * 3.0); 
+                    gl_FragColor = vec4(glowColor * pulse, intensity * 2.0);
+                }
+            `,
+            side: THREE.FrontSide,
+            blending: THREE.AdditiveBlending,
+            transparent: true,
+            depthWrite: false
+        });
+        const core = new THREE.Mesh(coreGeo, glowMaterial);
+        scene.add(core);
+
+        const innerCore = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 32), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        scene.add(innerCore);
+
+        // --- 2. THE ANACONDA ---
+        const snakeGroup = new THREE.Group();
+        scene.add(snakeGroup);
+
+        class SpiralCurve extends THREE.Curve {
+            constructor(scale = 1) {
+                super();
+                this.scale = scale;
+            }
+            getPoint(t, optionalTarget = new THREE.Vector3()) {
+                const tx = t * 3.5 * Math.PI;
+                const y = (t - 0.5) * 4.5; 
+                const x = Math.cos(tx) * 1.8; 
+                const z = Math.sin(tx) * 1.8;
+                return optionalTarget.set(x, y, z).multiplyScalar(this.scale);
+            }
+        }
+
+        const path = new SpiralCurve(1);
+        const tubeGeo = new THREE.TubeGeometry(path, 100, 0.35, 12, false);
+        const snakeMat = new THREE.MeshStandardMaterial({
+            color: CONFIG.colorSnake,
+            roughness: 0.4,
+            metalness: 0.8,
+            flatShading: true, 
+        });
+
+        const snakeBody = new THREE.Mesh(tubeGeo, snakeMat);
+        snakeGroup.add(snakeBody);
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 2.3, -1.8); 
+        headGroup.rotation.x = -Math.PI / 4; 
+        headGroup.rotation.y = Math.PI; 
+        const headGeo = new THREE.ConeGeometry(0.4, 1.2, 8);
+        headGeo.rotateX(Math.PI / 2); 
+        const headMesh = new THREE.Mesh(headGeo, snakeMat);
+        headGroup.add(headMesh);
+        const eyeGeo = new THREE.SphereGeometry(0.08, 16, 16);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: CONFIG.colorEyes });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.position.set(0.18, 0.1, 0.3); 
+        headGroup.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.position.set(-0.18, 0.1, 0.3);
+        headGroup.add(rightEye);
+        const spriteMaterial = new THREE.SpriteMaterial({ 
+        map: new THREE.CanvasTexture(generateGlowTexture()), 
+        color: 0xff0000, 
+        transparent: true, 
+        blending: THREE.AdditiveBlending 
+        });
+        const eyeGlow = new THREE.Sprite(spriteMaterial);
+        eyeGlow.scale.set(0.8, 0.8, 1.0);
+        eyeGlow.position.set(0, 0.1, 0.4);
+        headGroup.add(eyeGlow);
+        snakeGroup.add(headGroup);
+
+        // --- 3. PARTICLES ---
+        const particlesGeo = new THREE.BufferGeometry();
+        const particlesCount = 1500;
+        const posArray = new Float32Array(particlesCount * 3);
+        for(let i = 0; i < particlesCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const r = 2.5 + Math.random() * 4.0; 
+            posArray[i*3] = Math.cos(angle) * r;
+            posArray[i*3+1] = (Math.random() - 0.5) * 0.5;
+            posArray[i*3+2] = Math.sin(angle) * r;
+        }
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMat = new THREE.PointsMaterial({ size: 0.05, color: 0x0088ff, transparent: true, opacity: 0.6 });
+        const disk = new THREE.Points(particlesGeo, particlesMat);
+        scene.add(disk);
+
+        const starsGeo = new THREE.BufferGeometry();
+        const starsPos = new Float32Array(3000); 
+        for(let i=0; i<3000; i++) starsPos[i] = (Math.random() - 0.5) * 100;
+        starsGeo.setAttribute('position', new THREE.BufferAttribute(starsPos, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({color: 0xffffff, size: 0.15, transparent: true, opacity: 0.4}));
+        scene.add(stars);
+
+
+        // --- ANIMATION ---
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime() * CONFIG.speedMultiplier;
+
+            glowMaterial.uniforms.time.value = t;
+
+            snakeGroup.rotation.y = t * 0.5; 
+            snakeGroup.position.y = Math.sin(t * 0.5) * 0.2; 
+
+            headGroup.rotation.z = Math.sin(t * 2) * 0.1;
+
+            disk.rotation.y = -t * 0.1;
+            stars.rotation.y = t * 0.05;
+
+            camera.position.z = 9 + Math.sin(t * 0.2) * 1.0; 
+            camera.position.y = Math.sin(t * 0.3) * 0.5;
+            camera.lookAt(0, 0, 0);
+
+            renderer.render(scene, camera);
+        }
+        function generateGlowTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.2, 'rgba(255,0,0,1)');
+            gradient.addColorStop(0.5, 'rgba(50,0,0,0.5)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 32, 32);
+            return canvas;
+        }
+
+        // Updated Resize Logic for 9:16 container
+        window.addEventListener('resize', () => {
+            const width = viewport.clientWidth;
+            const height = viewport.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        });
+        
+        animate();
+    </script>
+</body>
+</html>
